@@ -110,7 +110,7 @@ resource "azurerm_container_app" "app" {
       name  = "frontend-test"
       image = "nginxdemos/hello"
       cpu    = "0.25"
-      memory = "0.5i"
+      memory = "0.5Gi"
     }
   }
 }
