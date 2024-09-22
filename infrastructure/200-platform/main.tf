@@ -36,7 +36,7 @@ resource "azurerm_container_app_environment" "capp_env" {
   location                   = data.azurerm_resource_group.ocb_rg.location
   log_analytics_workspace_id = azurerm_log_analytics_workspace.ocb_log.id
   workload_profile {
-    name = "default"
+    name = "Consumption"
     workload_profile_type = "Consumption"
     maximum_count = 10
     minimum_count = 0
