@@ -71,3 +71,8 @@ jobs:
           terraform -chdir=infrastructure/100-identity init -backend-config='backend-${{ env.ENVIRONMENT }}.config'
           terraform -chdir=infrastructure/100-identity plan -var="environment=${{ env.ENVIRONMENT }}"
           terraform -chdir=infrastructure/100-identity apply -var="environment=${{ env.ENVIRONMENT }}" -auto-approve
+      - name: 200-platform
+        run: |
+          terraform -chdir=infrastructure/200-platform init -backend-config='backend-${{ env.ENVIRONMENT }}.config'
+          terraform -chdir=infrastructure/200-platform plan -var="environment=${{ env.ENVIRONMENT }}"
+          terraform -chdir=infrastructure/200-platform apply -var="environment=${{ env.ENVIRONMENT }}" -auto-approve
