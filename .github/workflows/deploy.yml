@@ -12,6 +12,7 @@ jobs:
     env:
       ENVIRONMENT: ${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}
     steps:
+      - uses: actions/checkout@v4
       - name: Azure Login
         uses: azure/login@v2
         with:
@@ -63,5 +64,5 @@ jobs:
 
       - name: 100-identity
         run: |
-          terraform -chdir=infrastructure/100-identity init -backend-config='backend-dev.config'
+          terraform -chdir=infrastructure/100-identity init -backend-config='backend-${{ env.ENVIRONMENT }}.config'
           terraform -chdir=infrastructure/100-identity plab -var="environment=${{ env.ENVIRONMENT }}"
