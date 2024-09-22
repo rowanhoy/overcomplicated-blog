@@ -55,24 +55,18 @@ resource "azurerm_role_assignment" "acr_role_assignment" {
   principal_id         = data.azurerm_user_assigned_identity.umi.principal_id
 }
 
-resource "azurerm_log_analytics_workspace" "ocb_log" {
-  name                = "log-${var.app_name}-${var.environment}"
-  location            = data.azurerm_resource_group.ocb_rg.location
-  resource_group_name = data.azurerm_resource_group.ocb_rg.name
-  sku                 = "PerGB2018"
-  retention_in_days   = 30
-}
-
 resource "azurerm_container_app_environment" "capp_env" {
   name                       = "cae-${var.app_name}-${var.environment}"
-  resource_group_name        = data.azurerm_resource_group.ocb_rg.name
   location                   = data.azurerm_resource_group.ocb_rg.location
-  log_analytics_workspace_id = azurerm_log_analytics_workspace.ocb_log.id
+  resource_group_name        = data.azurerm_resource_group.ocb_rg.name
+  infrastructure_subnet_id = azurerm_subnet.container_subnet.id
   workload_profile {
     name                  = "Consumption"
     workload_profile_type = "Consumption"
+    maximum_count = 0
+    minimum_count = 0
   }
-  infrastructure_subnet_id = azurerm_subnet.container_subnet.id
+  
 }
 
 resource "azurerm_container_app" "app" {
