@@ -8,11 +8,6 @@ data "azurerm_user_assigned_identity" "umi" {
   resource_group_name = data.azurerm_resource_group.ocb_rg.name
 }
 
-data "azurerm_user_assigned_identity" "umi" {
-  name                = "id-overcomplicated-blog-${var.environment}"
-  resource_group_name = data.azurerm_resource_group.ocb_rg.name
-}
-
 resource "azurerm_virtual_network" "vnet" {
   name                = "vnet-${var.app_name}-${var.environment}"
   address_space       = ["10.0.0.0/16"]
@@ -73,7 +68,6 @@ resource "azurerm_container_app_environment" "capp_env" {
 resource "azurerm_container_app" "app" {
   name                         = "my-container-app"
   resource_group_name          = data.azurerm_resource_group.ocb_rg.name
-  location                     = data.azurerm_resource_group.ocb_rg.location
   container_app_environment_id = azurerm_container_app_environment.capp_env.id
   revision_mode                = "Single"
 
@@ -83,6 +77,7 @@ resource "azurerm_container_app" "app" {
     transport        = "http2"
     traffic_weight {
       percentage = 100
+      latest_revision = true
     }
     allow_insecure_connections = true
     ip_security_restriction {
@@ -114,18 +109,18 @@ resource "azurerm_container_app" "app" {
 
 
 resource "azurerm_frontdoor" "fd" {
-  name                = "my-front-door"
+  name                = "fd-${var.app_name}-${var.environment}"
   resource_group_name = data.azurerm_resource_group.ocb_rg.name
 
   # Frontend Endpoint
   frontend_endpoint {
-    name      = "site.rowanhoy.com"
+    name      = "site-rowanhoy-com"
     host_name = "site.rowanhoy.com"
   }
 
   # Backend Pool for the container app
   backend_pool {
-    name = "app-backend-pool"
+    name = "ocb-backend-pool"
 
     backend {
       host_header = azurerm_container_app.app.latest_revision_fqdn
@@ -142,7 +137,7 @@ resource "azurerm_frontdoor" "fd" {
   backend_pool_health_probe {
     name     = "http-health-probe"
     path     = "/"
-    protocol = "http"
+    protocol = "Http"
   }
 
   # Backend Pool Load Balancing
@@ -156,12 +151,12 @@ resource "azurerm_frontdoor" "fd" {
   # Routing Rule
   routing_rule {
     name               = "ocb-routing-rule"
-    accepted_protocols = ["http", "https"]
+    accepted_protocols = ["Http", "Https"]
     patterns_to_match  = ["/*"]
-    frontend_endpoints = [azurerm_frontdoor.fd.frontend_endpoint[0].name]
+    frontend_endpoints = ["site-rowanhoy-com"]
 
     forwarding_configuration {
-      backend_pool_name     = azurerm_frontdoor.fd.backend_pool[0].name
+      backend_pool_name     = "ocb-backend-pool"
       forwarding_protocol   = "MatchRequest"
     }
   }
