@@ -8,6 +8,32 @@ data "azurerm_user_assigned_identity" "umi" {
   resource_group_name = data.azurerm_resource_group.ocb_rg.name
 }
 
+data "azurerm_user_assigned_identity" "umi" {
+  name                = "id-overcomplicated-blog-${var.environment}"
+  resource_group_name = data.azurerm_resource_group.ocb_rg.name
+}
+
+resource "azurerm_virtual_network" "vnet" {
+  name                = "vnet-${var.app_name}-${var.environment}"
+  address_space       = ["10.0.0.0/16"]
+  location            = data.azurerm_resource_group.ocb_rg.location
+  resource_group_name = data.azurerm_resource_group.ocb_rg.name
+}
+
+resource "azurerm_subnet" "container_subnet" {
+  name                 = "snet-container"
+  resource_group_name  = data.azurerm_resource_group.ocb_rg.name
+  virtual_network_name = azurerm_virtual_network.vnet.name
+  address_prefixes     = ["10.0.1.0/24"]
+}
+
+resource "azurerm_subnet" "frontend_subnet" {
+  name                 = "snet-frontend"
+  resource_group_name  = data.azurerm_resource_group.ocb_rg.name
+  virtual_network_name = azurerm_virtual_network.vnet.name
+  address_prefixes     = ["10.0.2.0/24"]
+}
+
 resource "azurerm_container_registry" "acr" {
   name                = "acr${var.app_name_simple}${var.environment}"
   resource_group_name = data.azurerm_resource_group.ocb_rg.name
@@ -36,9 +62,107 @@ resource "azurerm_container_app_environment" "capp_env" {
   location                   = data.azurerm_resource_group.ocb_rg.location
   log_analytics_workspace_id = azurerm_log_analytics_workspace.ocb_log.id
   workload_profile {
-    name = "Consumption"
+    name                  = "Consumption"
     workload_profile_type = "Consumption"
-    maximum_count = 10
-    minimum_count = 0
+    maximum_count         = 10
+    minimum_count         = 0
+  }
+  infrastructure_subnet_id = azurerm_subnet.container_subnet.id
+}
+
+resource "azurerm_container_app" "app" {
+  name                         = "my-container-app"
+  resource_group_name          = data.azurerm_resource_group.ocb_rg.name
+  location                     = data.azurerm_resource_group.ocb_rg.location
+  container_app_environment_id = azurerm_container_app_environment.capp_env.id
+  revision_mode                = "Single"
+
+  ingress {
+    external_enabled = true
+    target_port      = 80
+    transport        = "http2"
+    traffic_weight {
+      percentage = 100
+    }
+    allow_insecure_connections = true
+    ip_security_restriction {
+      action = "Allow"
+      ip_address_range = azurerm_subnet.frontend_subnet.address_prefixes[0]
+      name = "frontdoor"
+    }
+  }
+
+  identity {
+    type = "UserAssigned"
+    identity_ids = [data.azurerm_user_assigned_identity.umi.id]
+  }
+
+  registry {
+    server = azurerm_container_registry.acr.login_server
+    identity = data.azurerm_user_assigned_identity.umi.id
+  }
+
+  template {
+    container {
+      name  = "frontend-test"
+      image = "nginxdemos/hello"
+      cpu    = "0.25"
+      memory = "0.5i"
+    }
+  }
+}
+
+
+resource "azurerm_frontdoor" "fd" {
+  name                = "my-front-door"
+  resource_group_name = data.azurerm_resource_group.ocb_rg.name
+
+  # Frontend Endpoint
+  frontend_endpoint {
+    name      = "site.rowanhoy.com"
+    host_name = "site.rowanhoy.com"
+  }
+
+  # Backend Pool for the container app
+  backend_pool {
+    name = "app-backend-pool"
+
+    backend {
+      host_header = azurerm_container_app.app.latest_revision_fqdn
+      address     = azurerm_container_app.app.latest_revision_fqdn
+      http_port   = 80
+      https_port  = 443
+    }
+
+    load_balancing_name = "lb-pool-1"
+    health_probe_name   = "http-health-probe"
+  }
+
+  # Backend Pool Health Probe
+  backend_pool_health_probe {
+    name     = "http-health-probe"
+    path     = "/"
+    protocol = "http"
+  }
+
+  # Backend Pool Load Balancing
+  backend_pool_load_balancing {
+    name                          = "lb-pool-1"
+    sample_size                   = 4
+    successful_samples_required    = 2
+    additional_latency_milliseconds = 0
+  }
+
+  # Routing Rule
+  routing_rule {
+    name               = "ocb-routing-rule"
+    accepted_protocols = ["http", "https"]
+    patterns_to_match  = ["/*"]
+    frontend_endpoints = [azurerm_frontdoor.fd.frontend_endpoint[0].name]
+
+    forwarding_configuration {
+      backend_pool_name     = azurerm_frontdoor.fd.backend_pool[0].name
+      forwarding_protocol   = "MatchRequest"
+    }
   }
 }
