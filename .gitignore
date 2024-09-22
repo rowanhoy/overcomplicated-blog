@@ -23,3 +23,32 @@ go.work.sum
 
 # env file
 .env
+
+# Local .terraform directories
+**/.terraform
+
+# .tfstate files
+*.tfstate
+*.tfstate.*
+
+# Crash logs
+crash.log
+
+# Ignore override files as they are usually not included in the version control
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Ignore Terraform plan output files
+*.tfplan
+
+# Ignore .terraform.lock.hcl file (if using provider version constraints)
+.terraform.lock.hcl
+
+# Ignore backup files created by terraform
+*.backup
+
+# Ignore CLI configuration files
+.terraformrc
+terraform.rc
