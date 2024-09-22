@@ -1,6 +1,7 @@
 terraform {
   backend "azurerm" {
     use_azuread_auth     = true
+    use_oidc             = true
     container_name       = "tfstate"
     key                  = "200-platform.terraform.tfstate"
     subscription_id      = "615fafa0-b83c-4cf8-bc91-6e9ff4f3edca"
