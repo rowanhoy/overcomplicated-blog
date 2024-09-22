@@ -69,4 +69,5 @@ jobs:
       - name: 100-identity
         run: |
           terraform -chdir=infrastructure/100-identity init -backend-config='backend-${{ env.ENVIRONMENT }}.config'
-          terraform -chdir=infrastructure/100-identity plab -var="environment=${{ env.ENVIRONMENT }}"
+          terraform -chdir=infrastructure/100-identity plan -var="environment=${{ env.ENVIRONMENT }}"
+          terraform -chdir=infrastructure/100-identity apply -var="environment=${{ env.ENVIRONMENT }}" -auto-approve
