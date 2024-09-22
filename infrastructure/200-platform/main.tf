@@ -67,7 +67,7 @@ resource "azurerm_container_app_environment" "capp_env" {
   workload_profile {
     name                  = "Consumption"
     workload_profile_type = "Consumption"
-    maximum_count         = 10
+    maximum_count         = 0
     minimum_count         = 0
   }
   infrastructure_subnet_id = azurerm_subnet.container_subnet.id
@@ -116,7 +116,22 @@ resource "azurerm_container_app" "app" {
 }
 
 
+data "azurerm_dns_zone" "rowanhoy_zone" {
+  name                = "rowanhoy.com"
+  resource_group_name = "rg-dns"
+}
+
+resource "azurerm_dns_cname_record" "site_cname" {
+  name                = "site"
+  zone_name           = data.azurerm_dns_zone.rowanhoy_zone.name
+  resource_group_name = "rg-dns"
+  ttl                 = 300
+  record = "fd-overcomplicated-blog-dev.azurefd.net"
+}
+
 resource "azurerm_frontdoor" "fd" {
+  depends_on = [ azurerm_dns_cname_record.site_cname]
+  
   name                = "fd-${var.app_name}-${var.environment}"
   resource_group_name = data.azurerm_resource_group.ocb_rg.name
 
