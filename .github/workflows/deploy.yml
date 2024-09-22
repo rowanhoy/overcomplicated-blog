@@ -1,0 +1,60 @@
+name: deploy site
+on: [push]
+
+
+permissions:
+  id-token: write
+  contents: read
+jobs:
+  infra-deployment:
+    environment: overcomplicated-blog
+    runs-on: ubuntu-latest
+    env:
+      ENVIRONMENT: ${{ github.ref == 'refs/heads/main' && 'prod' || 'dev' }}
+    steps:
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      
+      - name: Deploy base infra
+        uses: azure/CLI@v2
+        with:
+          azcliversion: latest
+          inlineScript: |
+            # Check if resource group exists, create if not
+            if [[ $(az group exists --name 'rg-overcomplicated-blog-${{ env.ENVIRONMENT }}') == "true" ]]; then
+              echo "Resource group already exists"
+            else
+              az group create --name 'rg-overcomplicated-blog-${{ env.ENVIRONMENT }}' --location 'australiaeast'
+            fi
+
+            # Check if the storage account exists, create if not
+            if [[ $(az storage account check-name --name "stovercomplicatedblog${{ env.ENVIRONMENT }}" --query 'nameAvailable' -o tsv) == "true" ]]; then
+              az storage account create --name "stovercomplicatedblog${{ env.ENVIRONMENT }}" \
+                --resource-group "rg-overcomplicated-blog-${{ env.ENVIRONMENT }}" \
+                --location "australiaeast" \
+                --sku "Standard_LRS" \
+                --kind "StorageV2" \
+                --enable-hierarchical-namespace false \
+                --allow-blob-public-access false \
+                --min-tls-version "TLS1_2" \
+                --assign-identity
+            else
+              echo "Storage account already exists"
+            fi
+
+            # Check if the blob container exists, create if not
+            container_exists=$(az storage container exists --name "tfstate" \
+              --account-name "stovercomplicatedblog${{ env.ENVIRONMENT }}" --query "exists" -o tsv)
+
+            if [[ "$container_exists" == "true" ]]; then
+              echo "Blob container 'tfstate' already exists"
+            else
+              az storage container create \
+                --name "tfstate" \
+                --account-name "stovercomplicatedblog${{ env.ENVIRONMENT }}" \
+                --public-access off
+            fi
