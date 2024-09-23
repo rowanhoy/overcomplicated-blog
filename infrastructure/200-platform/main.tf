@@ -44,7 +44,7 @@ resource "azurerm_container_app" "app" {
 
   ingress {
     external_enabled = true
-    target_port      = 80
+    target_port      = 443
     transport        = "http2"
     traffic_weight {
       percentage      = 100
@@ -73,11 +73,18 @@ resource "azurerm_container_app" "app" {
   }
 
   template {
+    max_replicas = 2
+    min_replicas = 0
+    http_scale_rule {
+      name = "http-scale-rule"
+      concurrent_requests = 500
+    }
     container {
       name   = "frontend-test"
-      image  = "nginxdemos/hello"
+      image  = "${azurerm_container_registry.acr.login_server}/nginx-https"
       cpu    = "0.25"
       memory = "0.5Gi"
+      
     }
   }
 }
