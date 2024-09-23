@@ -17,6 +17,7 @@ jobs:
       ARM_TENANT_ID: "${{ secrets.AZURE_TENANT_ID }}"
     steps:
       - uses: actions/checkout@v4
+      
       - name: Azure Login
         uses: azure/login@v2
         with:
@@ -73,4 +74,4 @@ jobs:
       - name: 200-platform
         run: |
           terraform -chdir=infrastructure/200-platform init -backend-config='backend-${{ env.ENVIRONMENT }}.config'
-          terraform -chdir=infrastructure/200-platform apply -var="environment=${{ env.ENVIRONMENT }}" -auto-approve
+          terraform -chdir=infrastructure/200-platform apply -var="environment=${{ env.ENVIRONMENT }}" -var="cloudflare_api_token=${{ secrets.CLOUDFLARE_TOKEN }}" -auto-approve

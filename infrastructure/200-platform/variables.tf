@@ -26,3 +26,8 @@ variable "app_name_simple" {
     type = string
     default = "overcomplicatedblog"
 }
+
+variable "cloudflare_api_token" {
+    description = "Cloudflare API token"
+    type = string
+}

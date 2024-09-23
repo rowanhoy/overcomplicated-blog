@@ -8,39 +8,6 @@ data "azurerm_user_assigned_identity" "umi" {
   resource_group_name = data.azurerm_resource_group.ocb_rg.name
 }
 
-resource "azurerm_virtual_network" "vnet" {
-  name                = "vnet-${var.app_name}-${var.environment}"
-  address_space       = ["10.0.0.0/16"]
-  location            = data.azurerm_resource_group.ocb_rg.location
-  resource_group_name = data.azurerm_resource_group.ocb_rg.name
-}
-
-resource "azurerm_subnet" "container_subnet" {
-  name                 = "snet-container"
-  resource_group_name  = data.azurerm_resource_group.ocb_rg.name
-  virtual_network_name = azurerm_virtual_network.vnet.name
-  address_prefixes     = ["10.0.1.0/24"]
-
-
-  delegation {
-    name = "app-env"
-    service_delegation {
-      name = "Microsoft.App/environments"
-      actions = [
-        "Microsoft.Network/virtualNetworks/subnets/join/action"
-      ]
-    }
-
-  }
-}
-
-resource "azurerm_subnet" "frontend_subnet" {
-  name                 = "snet-frontend"
-  resource_group_name  = data.azurerm_resource_group.ocb_rg.name
-  virtual_network_name = azurerm_virtual_network.vnet.name
-  address_prefixes     = ["10.0.2.0/24"]
-}
-
 resource "azurerm_container_registry" "acr" {
   name                = "acr${var.app_name_simple}${var.environment}"
   resource_group_name = data.azurerm_resource_group.ocb_rg.name
@@ -59,8 +26,6 @@ resource "azurerm_container_app_environment" "capp_env" {
   name                     = "cae-${var.app_name}-${var.environment}"
   location                 = data.azurerm_resource_group.ocb_rg.location
   resource_group_name      = data.azurerm_resource_group.ocb_rg.name
-  infrastructure_subnet_id = azurerm_subnet.container_subnet.id
-  infrastructure_resource_group_name = "rg-${var.app_name}-infra-${var.environment}"
   workload_profile {
     name                  = "Consumption"
     workload_profile_type = "Consumption"
@@ -68,6 +33,8 @@ resource "azurerm_container_app_environment" "capp_env" {
     minimum_count         = 0
   }
 }
+
+data "cloudflare_ip_ranges" "cloudflare" {}
 
 resource "azurerm_container_app" "app" {
   name                         = "my-container-app"
@@ -84,10 +51,17 @@ resource "azurerm_container_app" "app" {
       latest_revision = true
     }
     allow_insecure_connections = true
-    ip_security_restriction {
-      action           = "Allow"
-      ip_address_range = azurerm_subnet.frontend_subnet.address_prefixes[0]
-      name             = "frontdoor"
+
+    dynamic "ip_security_restriction" {
+      for_each = concat(
+        data.cloudflare_ip_ranges.cloudflare.ipv4_cidr_blocks,
+        data.cloudflare_ip_ranges.cloudflare.ipv6_cidr_blocks
+      )
+      content {
+        name              = "cloudflare-${ip_security_restriction.value}"
+        action            = "Allow"
+        ip_address_range  = ip_security_restriction.value
+      }
     }
   }
 
@@ -111,72 +85,15 @@ resource "azurerm_container_app" "app" {
   }
 }
 
-
-data "azurerm_dns_zone" "rowanhoy_zone" {
-  name                = "rowanhoy.com"
-  resource_group_name = "rg-dns"
+data "cloudflare_zone" "cf_zone" {
+  name = "rowanhoy.com"
 }
 
-resource "azurerm_dns_cname_record" "engineer_cname" {
-  name                = "engineer"
-  zone_name           = data.azurerm_dns_zone.rowanhoy_zone.name
-  resource_group_name = "rg-dns"
-  ttl                 = 300
-  record              = "fd-overcomplicated-blog-dev.azurefd.net"
-}
-
-resource "azurerm_frontdoor" "fd" {
-  depends_on = [azurerm_dns_cname_record.engineer_cname]
-
-  name                = "fd-${var.app_name}-${var.environment}"
-  resource_group_name = data.azurerm_resource_group.ocb_rg.name
-
-  # Frontend Endpoint
-  frontend_endpoint {
-    name      = "engineer-rowanhoy-com"
-    host_name = "engineer.rowanhoy.com"
-  }
-
-  # Backend Pool for the container app
-  backend_pool {
-    name = "ocb-backend-pool"
-
-    backend {
-      host_header = azurerm_container_app.app.latest_revision_fqdn
-      address     = azurerm_container_app.app.latest_revision_fqdn
-      http_port   = 80
-      https_port  = 443
-    }
-
-    load_balancing_name = "lb-pool-1"
-    health_probe_name   = "http-health-probe"
-  }
-
-  # Backend Pool Health Probe
-  backend_pool_health_probe {
-    name     = "http-health-probe"
-    path     = "/"
-    protocol = "Http"
-  }
-
-  # Backend Pool Load Balancing
-  backend_pool_load_balancing {
-    name                            = "lb-pool-1"
-    sample_size                     = 4
-    successful_samples_required     = 2
-    additional_latency_milliseconds = 0
-  }
-
-  # Routing Rule
-  routing_rule {
-    name               = "ocb-routing-rule"
-    accepted_protocols = ["Http", "Https"]
-    patterns_to_match  = ["/*"]
-    frontend_endpoints = ["engineer-rowanhoy-com"]
-
-    forwarding_configuration {
-      backend_pool_name   = "ocb-backend-pool"
-      forwarding_protocol = "MatchRequest"
-    }
-  }
+resource "cloudflare_record" "site" {
+  zone_id = data.cloudflare_zone.cf_zone.id
+  name    = var.environment == "prod" ? "s" : "${var.environment}.s"
+  content = azurerm_container_app.app.ingress[0].fqdn
+  type    = "CNAME"
+  ttl     = 300
+  proxied = true
 }
