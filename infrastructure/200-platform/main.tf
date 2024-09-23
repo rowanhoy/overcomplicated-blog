@@ -53,10 +53,7 @@ resource "azurerm_container_app" "app" {
     allow_insecure_connections = true
 
     dynamic "ip_security_restriction" {
-      for_each = concat(
-        data.cloudflare_ip_ranges.cloudflare.ipv4_cidr_blocks,
-        data.cloudflare_ip_ranges.cloudflare.ipv6_cidr_blocks
-      )
+      for_each = data.cloudflare_ip_ranges.cloudflare.ipv4_cidr_blocks
       content {
         name              = "cloudflare-${ip_security_restriction.value}"
         action            = "Allow"
