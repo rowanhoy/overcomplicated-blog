@@ -91,6 +91,6 @@ resource "cloudflare_record" "site" {
   name    = var.environment == "prod" ? "s" : "${var.environment}.s"
   content = azurerm_container_app.app.ingress[0].fqdn
   type    = "CNAME"
-  ttl     = 300
+  ttl     = 1
   proxied = true
 }
