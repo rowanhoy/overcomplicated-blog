@@ -23,9 +23,9 @@ resource "azurerm_role_assignment" "acr_role_assignment" {
 }
 
 resource "azurerm_container_app_environment" "capp_env" {
-  name                     = "cae-${var.app_name}-${var.environment}"
-  location                 = data.azurerm_resource_group.ocb_rg.location
-  resource_group_name      = data.azurerm_resource_group.ocb_rg.name
+  name                = "cae-${var.app_name}-${var.environment}"
+  location            = data.azurerm_resource_group.ocb_rg.location
+  resource_group_name = data.azurerm_resource_group.ocb_rg.name
   workload_profile {
     name                  = "Consumption"
     workload_profile_type = "Consumption"
@@ -41,11 +41,12 @@ resource "azurerm_container_app" "app" {
   resource_group_name          = data.azurerm_resource_group.ocb_rg.name
   container_app_environment_id = azurerm_container_app_environment.capp_env.id
   revision_mode                = "Single"
+  workload_profile_name        = "Consumption"
 
   ingress {
     external_enabled = true
-    target_port      = 443
-    transport        = "http2"
+    target_port      = 80
+    transport        = "auto"
     traffic_weight {
       percentage      = 100
       latest_revision = true
@@ -55,9 +56,9 @@ resource "azurerm_container_app" "app" {
     dynamic "ip_security_restriction" {
       for_each = data.cloudflare_ip_ranges.cloudflare.ipv4_cidr_blocks
       content {
-        name              = "cloudflare-${ip_security_restriction.value}"
-        action            = "Allow"
-        ip_address_range  = ip_security_restriction.value
+        name             = "cloudflare-${ip_security_restriction.value}"
+        action           = "Allow"
+        ip_address_range = ip_security_restriction.value
       }
     }
   }
@@ -76,7 +77,7 @@ resource "azurerm_container_app" "app" {
     max_replicas = 2
     min_replicas = 0
     http_scale_rule {
-      name = "http-scale-rule"
+      name                = "http-scale-rule"
       concurrent_requests = 500
     }
     container {
@@ -84,7 +85,7 @@ resource "azurerm_container_app" "app" {
       image  = "${azurerm_container_registry.acr.login_server}/nginx-https"
       cpu    = "0.25"
       memory = "0.5Gi"
-      
+
     }
   }
 }
@@ -95,7 +96,7 @@ data "cloudflare_zone" "cf_zone" {
 
 resource "cloudflare_record" "site" {
   zone_id = data.cloudflare_zone.cf_zone.id
-  name    = var.environment == "prod" ? "s" : "${var.environment}.s"
+  name    = var.environment == "prod" ? "s" : "${var.environment}-s"
   content = azurerm_container_app.app.ingress[0].fqdn
   type    = "CNAME"
   ttl     = 1
