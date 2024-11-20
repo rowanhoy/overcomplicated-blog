@@ -82,7 +82,7 @@ resource "azurerm_container_app" "app" {
     }
     container {
       name   = "frontend-test"
-      image  = "${azurerm_container_registry.acr.login_server}/nginx-https"
+      image  = "${azurerm_container_registry.acr.login_server}/next-fastapi"
       cpu    = "0.25"
       memory = "0.5Gi"
 

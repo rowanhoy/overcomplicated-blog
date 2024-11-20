@@ -10,14 +10,21 @@
 		},
 		"ghcr.io/devcontainers/features/terraform:1": {
 			"installTFsec": true,
-			"installTerraformDocs": true,
 			"version": "latest",
 			"tflint": "latest",
 			"terragrunt": "latest"
 		},
 		"ghcr.io/meaningful-ooo/devcontainer-features/fish:1": {
 			"fisher": true
-		}
+		},
+		"ghcr.io/devcontainers/features/node:1": {
+			"nodeGypDependencies": true,
+			"installYarnUsingApt": true,
+			"version": "latest",
+			"pnpmVersion": "latest",
+			"nvmVersion": "latest"
+		},
+		"ghcr.io/jsburckhardt/devcontainer-features/uv:1": {}
 	},
 	"customizations": {
 		"vscode": {
